@@ -1,6 +1,6 @@
 {
   "name": "@phantom/chain-interfaces",
-  "version": "1.0.0-beta.14",
+  "version": "1.0.0",
   "description": "Shared chain interfaces for Phantom SDK",
   "types": "dist/index.d.ts",
   "exports": {
@@ -17,7 +17,7 @@
     "build": "rimraf ./dist && tsc --project . --outDir dist --declaration --emitDeclarationOnly",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "lint": "tsc --noEmit && eslint --cache . --ext .ts,.tsx",
     "check-types": "tsc --noEmit",

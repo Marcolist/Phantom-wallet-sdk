@@ -1,10 +1,5 @@
 import { useState, useCallback, useMemo, type CSSProperties } from "react";
-import {
-  isMobileDevice,
-  getDeeplinkToPhantom,
-  type AuthProviderType,
-  type InjectedWalletInfo,
-} from "@phantom/browser-sdk";
+import { isMobileDevice, type AuthProviderType, type InjectedWalletInfo } from "@phantom/browser-sdk";
 import {
   Button,
   LoginWithPhantomButton,
@@ -90,23 +85,23 @@ export function ConnectModalContent({
     [connectWithAuthProvider],
   );
 
-  const connectWithDeeplink = useCallback(() => {
+  const connectWithDeeplink = useCallback(async () => {
     try {
       setIsConnecting(true);
       setError(null);
       setProviderType("deeplink");
 
-      const deeplinkUrl = getDeeplinkToPhantom();
-      window.location.href = deeplinkUrl;
+      await baseConnect.connect({ provider: "deeplink" });
 
       onClose();
-    } catch {
-      setError("Failed to open deeplink");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to open deeplink";
+      setError(errorMessage);
     } finally {
       setIsConnecting(false);
       setProviderType(null);
     }
-  }, [onClose]);
+  }, [baseConnect, onClose]);
 
   const appIconStyle: CSSProperties = {
     width: "56px",
@@ -328,20 +323,22 @@ export function ConnectModalContent({
             {errorState && <div style={errorStyle}>{errorState}</div>}
 
             {/* Mobile device with no Phantom extension - show deeplink button */}
-            {isMobile && !isExtensionInstalled.isInstalled && (
-              <Button
+            {isMobile && !isExtensionInstalled.isInstalled && allowedProviders.includes("deeplink") && (
+              <LoginWithPhantomButton
+                testId="deeplink-button"
                 onClick={connectWithDeeplink}
                 disabled={isConnectingState}
                 isLoading={isConnectingState && providerType === "deeplink"}
                 fullWidth={true}
               >
                 {isConnecting && providerType === "deeplink" ? "Opening Phantom..." : "Open in Phantom App"}
-              </Button>
+              </LoginWithPhantomButton>
             )}
 
             {/* Desktop Phantom Login button */}
             {!isMobile && allowedProviders.includes("phantom") && isPhantomLoginAvailable.isAvailable && (
               <LoginWithPhantomButton
+                testId="login-with-phantom-button"
                 onClick={() => connectWithAuthProvider("phantom")}
                 disabled={isConnectingState}
                 isLoading={isConnectingState && providerType === "phantom"}
@@ -349,7 +346,8 @@ export function ConnectModalContent({
             )}
 
             {/* Google and Apple buttons */}
-            {allowedProviders.includes("google") && (
+            {/* Hide Google login on mobile when extension is detected (webview doesn't support it) */}
+            {allowedProviders.includes("google") && !(isMobile && isExtensionInstalled.isInstalled) && (
               <Button
                 onClick={() => connectWithAuthProvider("google")}
                 disabled={isConnectingState}
@@ -388,70 +386,73 @@ export function ConnectModalContent({
             )}
 
             {/* Injected provider section */}
-            {!isMobile && allowedProviders.includes("injected") && isExtensionInstalled.isInstalled && (
-              <>
-                {showDivider && (
-                  <div style={dividerStyle}>
-                    <div style={dividerLineStyle} />
-                    <span style={dividerTextStyle}>OR</span>
-                    <div style={dividerLineStyle} />
-                  </div>
-                )}
+            {/* Show on desktop OR on mobile when extension is detected (Phantom app webview) */}
+            {allowedProviders.includes("injected") &&
+              (isExtensionInstalled.isInstalled || discoveredWallets.length > 0) &&
+              (!isMobile || isExtensionInstalled.isInstalled) && (
+                <>
+                  {showDivider && (
+                    <div style={dividerStyle}>
+                      <div style={dividerLineStyle} />
+                      <span style={dividerTextStyle}>OR</span>
+                      <div style={dividerLineStyle} />
+                    </div>
+                  )}
 
-                {/* Inline wallets (2 or fewer) */}
-                {walletsToShowInline.map(wallet => (
-                  <Button
-                    key={wallet.id}
-                    onClick={() => connectWithWallet(wallet)}
-                    disabled={isConnectingState}
-                    isLoading={isConnectingState && providerType === "injected" && selectedWalletId === wallet.id}
-                    fullWidth={true}
-                  >
-                    <span style={walletButtonContentStyle}>
-                      <span style={walletButtonLeftStyle}>
-                        {wallet.id === "phantom" ? (
-                          <BoundedIcon type="phantom" size={20} background={"#aba0f2"} color={"white"} />
-                        ) : wallet.icon ? (
-                          <img src={wallet.icon} alt={wallet.name} style={walletIconStyle} />
-                        ) : (
-                          <BoundedIcon type="wallet" size={10} background={theme.aux} color={theme.text} />
-                        )}
-                        <span style={walletNameContainerStyle}>
-                          <Text variant="captionBold">{wallet.name}</Text>
+                  {/* Inline wallets (2 or fewer) */}
+                  {walletsToShowInline.map(wallet => (
+                    <Button
+                      key={wallet.id}
+                      onClick={() => connectWithWallet(wallet)}
+                      disabled={isConnectingState}
+                      isLoading={isConnectingState && providerType === "injected" && selectedWalletId === wallet.id}
+                      fullWidth={true}
+                    >
+                      <span style={walletButtonContentStyle}>
+                        <span style={walletButtonLeftStyle}>
+                          {wallet.id === "phantom" ? (
+                            <BoundedIcon type="phantom" size={20} background={"#aba0f2"} color={"white"} />
+                          ) : wallet.icon ? (
+                            <img src={wallet.icon} alt={wallet.name} style={walletIconStyle} />
+                          ) : (
+                            <BoundedIcon type="wallet" size={10} background={theme.aux} color={theme.text} />
+                          )}
+                          <span style={walletNameContainerStyle}>
+                            <Text variant="captionBold">{wallet.name}</Text>
+                          </span>
+                        </span>
+                        <span style={walletButtonRightStyle}>
+                          {wallet.addressTypes && wallet.addressTypes.length > 0 && (
+                            <span style={chainIndicatorsStyle}>
+                              {wallet.addressTypes.map(addressType => (
+                                <span key={`${wallet.id}-chain-${addressType}`}>
+                                  <ChainIcon addressType={addressType} size={8} />
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                          <Icon type="chevron-right" size={16} color={theme.secondary} />
                         </span>
                       </span>
-                      <span style={walletButtonRightStyle}>
-                        {wallet.addressTypes && wallet.addressTypes.length > 0 && (
-                          <span style={chainIndicatorsStyle}>
-                            {wallet.addressTypes.map(addressType => (
-                              <span key={`${wallet.id}-chain-${addressType}`}>
-                                <ChainIcon addressType={addressType} size={8} />
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                        <Icon type="chevron-right" size={16} color={theme.secondary} />
-                      </span>
-                    </span>
-                  </Button>
-                ))}
+                    </Button>
+                  ))}
 
-                {/* Other Wallets button (if more than 2 wallets) */}
-                {shouldShowOtherWalletsButton && (
-                  <Button onClick={() => setShowOtherWallets(true)} disabled={isConnectingState} fullWidth={true}>
-                    <span style={walletButtonContentStyle}>
-                      <span style={walletButtonLeftStyle}>
-                        <BoundedIcon type="wallet" size={20} background={theme.aux} color={theme.text} />
-                        <Text variant="captionBold">Other Wallets</Text>
+                  {/* Other Wallets button (if more than 2 wallets) */}
+                  {shouldShowOtherWalletsButton && (
+                    <Button onClick={() => setShowOtherWallets(true)} disabled={isConnectingState} fullWidth={true}>
+                      <span style={walletButtonContentStyle}>
+                        <span style={walletButtonLeftStyle}>
+                          <BoundedIcon type="wallet" size={20} background={theme.aux} color={theme.text} />
+                          <Text variant="captionBold">Other Wallets</Text>
+                        </span>
+                        <span style={walletButtonRightStyle}>
+                          <Icon type="chevron-right" size={16} color={theme.secondary} />
+                        </span>
                       </span>
-                      <span style={walletButtonRightStyle}>
-                        <Icon type="chevron-right" size={16} color={theme.secondary} />
-                      </span>
-                    </span>
-                  </Button>
-                )}
-              </>
-            )}
+                    </Button>
+                  )}
+                </>
+              )}
           </div>
 
           {/* Footer - only on main connection screen */}

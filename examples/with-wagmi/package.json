@@ -1,6 +1,6 @@
 {
   "name": "with-wagmi",
-  "version": "0.1.1-beta.0",
+  "version": "0.1.1",
   "private": true,
   "dependencies": {
     "@phantom/browser-sdk": "workspace:^",
@@ -25,7 +25,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "?test": "There's no tests for this examples, simply skipping them to unblock CI",
+    "test": "exit 0",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
